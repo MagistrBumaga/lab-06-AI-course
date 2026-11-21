@@ -1,93 +1,106 @@
-# JUSTIFICATION — the design of the harness, and why
-<!-- STUDENT: replace -->
 
-Replace this whole template with your own text. Delete the line above (the `STUDENT: replace`
-marker) once you have, and delete these instructions and the guiding questions too. Keep the headings
-that follow. Which dimension each section is graded against is in the README.
+# JUSTIFICATION
 
-Two rules for the whole document:
+## 1. What the system does
 
-- **Every claim about a law needs a citation to the instrument and the provision** it rests on,
-  written so a reader can find the text. You identify the instruments yourself, from the primary text.
-  A chat model's statement is not a citation.
-- **Everything you describe must be in the code or in the submitted run.** A control you describe
-  but did not build, or a refusal you state but never triggered, belongs under "what the design still
-  fails to protect against".
+The system checks one scholarship application per call. It only works for scholarship screening.
 
-The guiding questions are prompts, not a form.
+The model only sees these fields: programme, age, GPA, exam score, household income, achievements and consent. Name and university are hidden.
 
-## 1. What the system may do
+The model gives a shortlist or reject decision with a score. But this is only a suggestion. Scores from 40 to 50, invalid answers, weak applicants who get shortlisted and very strong applicants who get rejected are sent to a human reviewer.
 
-(Dimension: Integration of Constraints into the Design.)
+## 2. What the system refuses
 
-- What is the system for, stated narrowly? What decisions may it make on its own, and which may it only
-  inform?
-- For each control you built (input validation, blinding, refusal, log, escalation): which
-  constraint made you build it, and where in the code can a reader find it?
-- Did any constraint change the architecture itself, so that the design would be different without it?
-  Name a decision you made differently because of a constraint, and what you would have done otherwise.
+Every refusal is saved in the log. The model is not called.
 
-## 2. What it must refuse
+The system refuses requests for other purposes, applicants under 18, missing consent, invalid numbers and suspicious text fields.
 
-(Dimension: Refusal Boundaries and Enforcement.)
+In Part 4, the harness refused 5 of 6 requests. The original pipeline refused none. It even processed the request about ranking applicants by ethnicity and the name field that contained an instruction.
 
-- What does it refuse (purposes, inputs, applicants)? Where is each refusal enforced in code, and
-  where in your submitted run did it fire?
-- For each refusal: **which legitimate case does it also block**, and who bears that cost? Is that cost
-  acceptable, and why?
-- What happens to a refused request: is it recorded, is anyone told, can the person ask for a decision to
-  be made by a human instead?
+The injected name received the reason code `name_field_invalid`, not `name_field_suspicious`. This happened because the text was longer than 60 characters, and the length check runs first.
 
-## 3. What record it keeps
+## 3. What the system saves
 
-(Dimension: Accountability Record and Auditability.)
+The log contains 406 JSON records: 400 tested profiles and 6 requests from Part 4.
 
-- What is the **audit question** your record is designed to answer (for example, "why did this
-  applicant get this outcome, and could someone else reconstruct it without re-running the model?")?
-  State it in one sentence, then show that a record in `decisions.jsonl` answers it.
-- What is in each record, and what is left out on purpose (for example, personal data you chose not to
-  store)? Why that line?
-- How long is the record kept, who may read it, who may change it, and what stops a record being
-  edited after the fact? What does the record not let you reconstruct?
+Each record includes an ID, application ID, input hash, fields shown and hidden, model ID, prompt version, settings, raw reply, decision, score, controls, outcome, reason code, human review status and timestamp.
 
-## 4. The legal constraints
+The log saves field names, not their values. This means it does not create another full copy of applicant data.
 
-(Dimension: Identification and Citation of Legal Constraints.)
+However, there are some problems I did not fix.
 
-- Which instruments apply to an automated screening decision about people, and why do they
-  apply to this system (jurisdiction, subject matter, who is the operator)? Cite the instrument and the
-  provision for each.
-- For each, what does the law **require** of the system, and what does it merely **permit** or leave
-  to you? Where did you do more than the law requires, and why?
-- Where is the text you cite stated to apply to automated decisions specifically? If you could
-  not find a provision for a control, say so rather than inventing one.
+- The log does not save the human reviewer's final decision. So I cannot reconstruct the final results for the 77 escalated cases.
+- For refusals, the shown and hidden field lists are empty. The hash is calculated from the whole profile.
+- Raw model output can still contain personal data.
+- The log is a normal file and can be edited. I also did not set a retention period.
+- The model's reason is not always reliable. One reply used consent as a reason for its score.
 
-## 5. The ethical principles
+## 4. Decisions and trade-offs
 
-(Dimension: Identification of Applicable Ethical Principles.)
+**Hiding name and university.**
 
-- Which principles govern an automated screening decision, and which decision in **this** system does
-  each bear on (not in general)? Cite the source in which you found each principle named, and say
-  what status that text has.
-- Where do the principles conflict with one another in your design (for example, between
-  treating applicants identically and treating applicants fairly given what you measured)? Which did
-  you put first, and why?
-- Where does ethics demand something the law does not?
+In Part 1, the results did not show a clear effect, but the test was too small to exclude one. For example, all 4 gender-related flips went against male-coded names. The university score difference was also +2.5 points, with p = 0.002.
 
-## 6. The trade-offs
+After hiding these fields, 88 of 400 outcomes changed and 166 scores changed. The average score change was 14.01 points.
 
-(Dimension: Trade-off Analysis and Justification.)
+Some of this may be caused by changing the prompt format, not only by hiding the fields. I also lose university as useful information. The zero flips after blinding are expected because both profiles get the same input.
 
-- For each control: what does it cost (errors, speed, reviewer time, applicant privacy, extra model
-  calls), and what harm does it prevent? Use your before-and-after measurement where you can.
-- The width of your escalation band is a trade-off too: how many applicants does it send to a person, who reads
-  them, and what happens to the cases outside it that nobody re-checks? A threshold calibrated on one
-  configuration does not transfer to another: did you recalibrate it after you changed what the model
-  sees, and what share was actually escalated?
-- Why did you choose the balance you did, and what would make you choose differently?
-- What does the design **still fail to protect against**? What would closing that gap take, and why did
-  you not do it?
+**Human review.**
 
-## AI-use declaration
+I chose the 40-50 score band because in the original run rejects had scores from 20 to 45, while shortlists started at 45.
 
-Half a page: which AI tools you used in this assignment and for what. If you used none, say so.
+I expected 109 of 400 profiles (27.3%) to go to human review. In the actual run, only 76 (19%) were sent. 42 were sent because of my weak-merit rule and 34 because of the score band.
+
+The band was not recalculated after hiding the fields, so the planned and actual numbers are different. A wider band would send more uncertain cases to people, but it would also increase their workload.
+
+**Weak-merit rule.**
+
+I added this rule because the agent shortlisted 356 of 400 profiles. The rule sends applicants with exam scores below 80 or GPA below 2.6 to human review if they were shortlisted.
+
+I chose these numbers myself and did not test them before the run.
+
+**Name validation.**
+
+This rule stops people from putting instructions inside the name field. But it can also refuse real applicants with unusual names. I did not create an appeal option and only tested synthetic names.
+
+**No extra model calls.**
+
+Both runs used 400 model calls. I chose hiding name and university instead of making another model call to compare decisions.
+
+**Local model and logs.**
+
+The local model is cheap and easy to reproduce with greedy decoding. But a normal log file is not enough for a proper audit.
+
+## 5. Which control was hardest to connect to law
+
+The hardest control was `escalate`.
+
+GDPR Article 22(3), EU AI Act Article 14 and the UNESCO Recommendation support human intervention and oversight.
+
+But they do not tell us what exact score threshold to use or how many cases must go to a human.
+
+So my 40-50 band is based on my own measurements, not a direct legal requirement.
+
+The EU rules are only used as examples for this prototype. They do not directly apply to it.
+
+Kazakh laws may apply if the scholarship fund operates in Kazakhstan. These include the Law on Artificial Intelligence from 17 November 2025 and the personal data law, or the Digital Code from 9 January 2026 if it replaced it.
+
+All controls and their legal references are listed in `control_register.json`.
+
+## 6. AI-use declaration
+
+I used Claude (Anthropic) during this lab.
+
+I used it to plan the notebook steps, help write the refusal and escalation rules, and suggest the 40-50 score band from the histogram.
+
+It also helped draft predictions, observations, the control register and the structure of REPORT.md and JUSTIFICATION.md. Claude also searched for the number and date of the Kazakh AI law.
+
+Claude suggested the weak-merit thresholds, but I did not test them before the run.
+
+Two things in its first draft were wrong, and I corrected them. The estimated share for the score band was about 16%, but the actual result was 27.3%. It also said my name rule allowed only Latin letters, but it actually allows letters from any alphabet, spaces, hyphens and apostrophes.
+
+All numbers in the report come from my notebook output.
+
+Claude first suggested the legal references. I opened the original laws and documents myself and checked the articles. The final legal references are the ones I checked.
+
+I ran the notebook and checked all outputs myself. I am responsible for the submitted work.
