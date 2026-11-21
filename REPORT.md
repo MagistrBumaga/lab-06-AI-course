@@ -1,66 +1,58 @@
-# REPORT — what the measurement showed, who it affects, and whose responsibility it is
-<!-- STUDENT: replace -->
 
-Replace this whole template with your own text. Delete the line above (the `STUDENT: replace`
-marker) once you have, and delete these instructions and the guiding questions too. Keep the three
-numbered headings. Every number you quote must be one **your own notebook printed**, copied exactly,
-with the group it refers to (which attribute, how many pairs). Which dimension each section is
-graded against is in the README.
+# REPORT
 
-The guiding questions are prompts, not a form: you do not have to answer each one in turn, and
-answering them without evidence from your run earns nothing.
+All numbers come from my notebook run (Qwen2.5-3B-Instruct, greedy decoding, seed 2026, 40 matched pairs per group, 5 groups = 200 pairs = 400 profiles).
 
-## 1. Measurement read-out
+## 1. What I tested
 
-(Dimension: Evidence of Specific Impact.)
+The agent gave valid answers for all 400 profiles. It shortlisted 356 profiles (89%).
 
-Guiding questions:
+The results show that none of the tested attributes had a clear effect. All flip-rate intervals overlap with their own floors. The same is true for score differences. So I cannot say that any attribute clearly changed the decisions.
 
-- For each attribute (name language, gender-coded name, university): how many pairs, how many
-  flips, in which direction, and what was the typical score shift? Are these counts and magnitudes,
-  or a description of them?
-- Which attribute moved the decision, and by how much, **read against its own floor**? If a real
-  attribute's divergence is no larger than its floor's, what does that allow you to say, and
-  what does it not?
-- How much of the divergence could be noise? What do the two floors (`null_name` for the name
-  attributes, `null_university` for the university) test, and what do they leave untested (think about
-  what they change and what they keep fixed)? What would a stronger estimate require?
-- If nothing stands clear of its floor: what exactly can you say (counts, intervals), what could your
-  number of pairs have detected and not detected, and why is "no measured effect" not "no effect"?
-- Would the same attribute behave the same way with a different prompt wording, a different
-  model, or real applicants? Say what your run can and cannot support.
+Some results are still worth mentioning.
 
-## 2. Who is affected
+- **Gender-coded name.** All 4 changed decisions were against male-coded names (0 vs 4, exact McNemar p = 0.125). Male-coded profiles were shortlisted 80% of the time, compared to 90% for female-coded names. This is the biggest difference, but 4 pairs are not enough to show a clear result.
+- **University.** Flagship universities had scores 2.5 points higher on average (+2.5, sign test p = 0.002). Only 1 of 40 decisions changed. The score difference is close to the normal noise level, so I cannot say it changed the final results.
+- **Name language.** Score differences were close to zero: Kazakh +0.7, Russian +0.2, English -1.0.
+- **My predictions.** I predicted 0 to 3 unparseable replies. The actual number was 0. I also predicted university would have the biggest effect, but this was wrong.
 
-(Dimension: Affected Parties and the Consequences They Bear.)
+There are also some limits to this test.
 
-Guiding questions:
+With only 40 pairs per group, small effects are hard to detect. No clear result does not mean there is no effect. I also did not test how changing the prompt order affects decisions.
 
-- On each side of a **wrong** decision, who is it? Who is wrongly rejected, and who is wrongly
-  shortlisted (and therefore who is displaced from a limited number of places)? Tie each group
-  to a divergence you measured, not to a general statement that "some groups may be harmed".
-- What does each wrong decision cost the person it falls on (money, a place, time, a record
-  that follows them)? Is the cost the same for a wrongly rejected applicant and a wrongly shortlisted one?
-- Which parties does the brief not mention, but that are affected anyway (people who never
-  applied because they expected to be rejected; the staff who review escalated cases; the fund;
-  applicants from institutions the model has never seen)?
-- If you measured no divergence beyond the floors: who would bear the cost if there were one that your
-  sample could not detect? Tie that to what your number of pairs could and could not see.
-- Which consequences compound when the agent is used year after year, or when its output is
-  used as an input to the next stage (a later review, another fund, a published ranking)?
+The biggest problem is not related to protected attributes. The agent is too generous. It gave a score of 60 and shortlisted an applicant with an exam score of 60 out of 140 and zero achievements.
 
-## 3. Professional responsibility
+## 2. Results after adding controls
 
-(Dimension: Recognition of Professional Responsibility.)
+I added input validation, name and university blinding, refusal rules, logging and escalation.
 
-Guiding questions:
+- **Flips.** All five groups had 0/40 flips. This happened because names and universities were hidden, so both profiles had exactly the same input. This does not prove that bias was removed.
+- **Decisions.** 88 of 400 outcomes changed. 54 shortlists went to escalation, 22 rejects went to escalation, 7 shortlists became rejects and 5 rejects became shortlists. Only 12 profiles changed directly between shortlist and reject.
+- **Scores.** 166 scores changed, with an average difference of 14.01 points. Removing two lines from the prompt changed the results quite a lot. This does not prove the model used those fields.
+- **Human review.** 76 of 400 profiles (19%) went to a person. 42 were sent because of my weak-merit rule and 34 because of the score band. I originally expected 109 profiles (27.3%), so my prediction was wrong.
+- **Cost.** Both runs used 400 model calls, or 1 call per profile. Prompt tokens went from 84409 to 77922. No clean applicants were refused.
+- **Refusals.** The harness refused 5 of 6 test requests without calling the model. The original pipeline refused none and even processed requests about ranking by ethnicity, a 17-year-old applicant, missing consent and impossible values. The sixth request was a normal application and went to human review.
+- **Logs.** The file decisions.jsonl contains 406 records: 400 measured profiles and 6 test requests. There were 77 escalations, 24 rejects, 300 shortlists and 5 refusals.
 
-- Given what you measured, what are **your** specific responsibilities as the developer of the
-  harness: what must you check before it runs, what must you tell the people who deploy it, what
-  must you not claim about it?
-- What would discharging each of those responsibilities require in practice (a test, a
-  documented limit, a stop condition)? What have you actually done in this lab, and what is left?
-- Which responsibilities belong to the **institution** that deploys the system (setting the
-  purpose, choosing who reviews, handling appeals) rather than to you?
-- Where do the two conflict? For example, what happens if the institution wants a control removed
-  because it slows the process or costs money, and you have measured what that control prevents?
+## 3. Who is affected
+
+- **Applicants with male-coded names.** All 4 changed decisions went against them. If this direction is real, they may have a lower chance of getting shortlisted. But my test is too small to confirm this.
+- **Regional university applicants.** Their scores were about 2.5 points lower on average. This can affect their chances of getting a scholarship. Hiding university closes this specific path, but other fields may still contain similar information.
+- **All applicants.** The agent shortlisted 89% of people. This means it does not separate strong and weak applicants very well. Scores also changed by 14.01 points on average after changing the prompt.
+- **Applicants sent to human review.** 76 people must wait for a reviewer. 22 of them would have been rejected without human review, while 54 would have been shortlisted.
+- **Refused applicants.** They do not get a decision, and there is no appeal option in my code. My name rule only allows letters, spaces, hyphens and apostrophes. A real name with a dot, number or another unusual character may be refused. None of the 400 synthetic names were refused, but this is not enough to prove the rule is safe.
+- **Reviewers.** They have to check 19% of applications. I did not test how they would make their decisions.
+
+## 4. My responsibility
+
+I built the controls, so I am responsible for their results.
+
+The zero flips after blinding do not prove that bias was removed. This is simply how the test works when both profiles get identical input.
+
+My test was small, and I chose the thresholds without testing them first. The weak-merit rule and the 40-50 score band need more testing.
+
+The agent is too generous and its scores are not stable. My controls do not fix these problems.
+
+Before using this system in real life, I would need a bigger test, better score thresholds and a way to record what human reviewers decide.
+
+Refusing or sending an application to a person does not automatically make the decision fair. I am still responsible for this problem.
